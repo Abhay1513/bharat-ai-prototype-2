@@ -4,6 +4,10 @@ const MAX_CHATS = 40;
 const MAX_MESSAGES = 100;
 const MAX_HISTORY = 20;
 
+// Netlify Function endpoints
+const CHAT_ENDPOINT = "/.netlify/functions/chat";
+const FILE_ENDPOINT = "/.netlify/functions/create-file";
+
 const chatBox = document.getElementById("chat-box");
 const chatForm = document.getElementById("chat-form");
 const userInput = document.getElementById("user-input");
@@ -31,7 +35,10 @@ function loadChats() {
 
 function saveChats() {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(chats.slice(0, MAX_CHATS)));
+        localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(chats.slice(0, MAX_CHATS))
+        );
     } catch {
         alert("Browser storage is full. Delete old chats to free space.");
     }
@@ -47,15 +54,17 @@ function createChat() {
     if (isBusy) return;
 
     currentChatId = makeId();
-    const chat = {
+
+    chats.unshift({
         id: currentChatId,
         title: "New chat",
         messages: [],
         updatedAt: Date.now()
-    };
+    });
 
-    chats.unshift(chat);
+    chats = chats.slice(0, MAX_CHATS);
     conversationHistory = [];
+
     saveChats();
     renderHistory();
     renderChat();
@@ -71,7 +80,9 @@ function renderHistory() {
 
     for (const chat of chats) {
         const item = document.createElement("div");
-        item.className = "history-item" + (chat.id === currentChatId ? " active" : "");
+        item.className =
+            "history-item" +
+            (chat.id === currentChatId ? " active" : "");
 
         const open = document.createElement("button");
         open.className = "history-open";
@@ -84,6 +95,7 @@ function renderHistory() {
         del.textContent = "×";
         del.title = "Delete chat";
         del.setAttribute("aria-label", "Delete chat");
+
         del.addEventListener("click", event => {
             event.stopPropagation();
             deleteChat(chat.id);
@@ -101,9 +113,16 @@ function openChat(id) {
     if (!chat) return;
 
     currentChatId = id;
+
     conversationHistory = chat.messages
-        .filter(message => message.role === "user" || message.role === "assistant")
-        .map(message => ({ role: message.role, parts: [{ text: message.text }] }));
+        .filter(message =>
+            message.role === "user" || message.role === "assistant"
+        )
+        .map(message => ({
+            role: message.role,
+            content: message.text
+        }))
+        .slice(-MAX_HISTORY);
 
     renderHistory();
     renderChat();
@@ -159,6 +178,7 @@ function renderChat() {
     }
 
     welcome.classList.add("hidden");
+
     for (const message of chat.messages) {
         addMessageToDOM(message);
     }
@@ -168,10 +188,12 @@ function renderChat() {
 
 function renderMarkdown(text) {
     const html = window.marked
-        ? marked.parse(text, { breaks: true, gfm: true })
+        ? window.marked.parse(text, { breaks: true, gfm: true })
         : escapeHTML(text).replace(/\n/g, "<br>");
 
-    return window.DOMPurify ? DOMPurify.sanitize(html) : html;
+    return window.DOMPurify
+        ? window.DOMPurify.sanitize(html)
+        : html;
 }
 
 function escapeHTML(text) {
@@ -188,13 +210,23 @@ function addMessage(role, text, download = null) {
     const chat = getCurrentChat();
     if (!chat) return;
 
-    const message = { role, text, download, id: makeId() };
+    const message = {
+        role,
+        text: String(text),
+        download,
+        id: makeId()
+    };
+
     chat.messages.push(message);
     chat.messages = chat.messages.slice(-MAX_MESSAGES);
     chat.updatedAt = Date.now();
 
-    if (role === "user" && chat.messages.filter(m => m.role === "user").length === 1) {
-        chat.title = text.replace(/\s+/g, " ").slice(0, 42) || "New chat";
+    if (
+        role === "user" &&
+        chat.messages.filter(m => m.role === "user").length === 1
+    ) {
+        chat.title = message.text.replace(/\s+/g, " ").slice(0, 42)
+            || "New chat";
     }
 
     saveChats();
@@ -213,7 +245,8 @@ function addMessageToDOM(message) {
     label.textContent = message.role === "user" ? "You" : "Bharat AI";
 
     const content = document.createElement("div");
-    content.className = "message-content " +
+    content.className =
+        "message-content " +
         (message.role === "user" ? "user-message" : "ai-message");
 
     if (message.role === "user") {
@@ -230,10 +263,6 @@ function addMessageToDOM(message) {
         link.href = message.download.url;
         link.textContent = `⬇ Download ${message.download.filename}`;
         link.download = message.download.filename;
-        link.addEventListener("click", event => {
-            // The link navigates to the server's download endpoint.
-            event.stopPropagation();
-        });
         row.append(link);
     }
 
@@ -247,12 +276,15 @@ function addMessageToDOM(message) {
         addAction(actions, "Copy code only", () => copyOnlyCode(message.text));
         addAction(actions, "Read aloud", () => readAloud(message.text));
         addAction(actions, "Stop reading", stopReading);
+
         addAction(actions, "Run JavaScript", () => {
             const code = extractJavaScript(message.text);
+
             if (!code) {
                 alert("No JavaScript code block was found.");
                 return;
             }
+
             runJavaScript(code);
         });
     }
@@ -299,7 +331,9 @@ async function copyOnlyCode(answer) {
     const blocks = extractCodeBlocks(answer);
 
     if (!blocks.length) {
-        alert("No fenced code block found. Ask Bharat AI to put the code inside a code block.");
+        alert(
+            "No fenced code block found. Ask Bharat AI to put the code inside a code block."
+        );
         return;
     }
 
@@ -307,12 +341,13 @@ async function copyOnlyCode(answer) {
 }
 
 function extractJavaScript(answer) {
-    const match = answer.match(/```(?:javascript|js)\s*\n([\s\S]*?)```/i);
+    const match = answer.match(
+        /```(?:javascript|js)\s*\n([\s\S]*?)```/i
+    );
+
     return match ? match[1].trim() : "";
 }
 
-// Read aloud cleans the text before speech synthesis.
-// It skips fenced code, inline code, URLs, Markdown syntax, and repeated whitespace.
 function prepareSpeech(text) {
     return String(text)
         .replace(/```[\s\S]*?```/g, " Code block omitted. ")
@@ -349,6 +384,7 @@ function readAloud(text) {
     stopReading();
 
     const cleanText = prepareSpeech(text);
+
     if (!cleanText) {
         alert("There is no readable text in this answer.");
         return;
@@ -358,20 +394,25 @@ function readAloud(text) {
     speech.lang = "en-IN";
     speech.rate = 1;
     speech.pitch = 1;
-    speechSynthesis.speak(speech);
+    window.speechSynthesis.speak(speech);
 }
 
 function stopReading() {
-    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+    }
+
     speech = null;
 }
 
 function runJavaScript(code) {
     const area = document.getElementById("run-area");
     const frame = document.getElementById("code-preview");
+
     area.classList.remove("hidden");
 
     const escaped = code.replace(/<\/script/gi, "<\\/script");
+
     frame.srcdoc = `<!doctype html>
 <html><head><meta charset="utf-8"><style>
 body{font:14px Arial;padding:16px;color:#202123}
@@ -389,6 +430,7 @@ try {
 ${escaped}
 } catch(error) { log("Error: "+error.message); }
 <\/script></body></html>`;
+
     area.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -399,7 +441,10 @@ function detectFileType(prompt) {
     if (/\b(excel|spreadsheet|workbook|\.xlsx)\b/.test(text)) return "xlsx";
     if (/\b(word document|word file|\.docx)\b/.test(text)) return "docx";
 
-    const extensionMatch = text.match(/\.(html|css|js|mjs|cjs|py|json|txt|md|csv|xml|svg|sql|sh|bat|yml|yaml)\b/);
+    const extensionMatch = text.match(
+        /\.(html|css|js|mjs|cjs|py|json|txt|md|csv|xml|svg|sql|sh|bat|yml|yaml)\b/
+    );
+
     if (extensionMatch) return extensionMatch[1];
 
     if (/\bpython\b/.test(text)) return "py";
@@ -414,13 +459,21 @@ function detectFileType(prompt) {
 
 function isFileRequest(prompt) {
     const text = prompt.toLowerCase();
-    const asksToCreate = /\b(create|make|generate|build|export|download|save|produce)\b/.test(text);
-    const asksForFile = /\b(file|document|report|spreadsheet|workbook|presentation|slides?|downloadable|\.docx|\.pptx|\.xlsx|\.html|\.css|\.js|\.py|\.json|\.txt|\.md|\.csv|\.xml|\.svg|\.sql)\b/.test(text);
+
+    const asksToCreate =
+        /\b(create|make|generate|build|export|download|save|produce)\b/.test(text);
+
+    const asksForFile =
+        /\b(file|document|report|spreadsheet|workbook|presentation|slides?|downloadable|\.docx|\.pptx|\.xlsx|\.html|\.css|\.js|\.py|\.json|\.txt|\.md|\.csv|\.xml|\.svg|\.sql)\b/.test(text);
+
     return asksToCreate && asksForFile;
 }
 
 function titleFromPrompt(prompt) {
-    const match = prompt.match(/\b(?:called|named|title(?:d)?)\s+["']?([a-zA-Z0-9 _-]{2,50})/i);
+    const match = prompt.match(
+        /\b(?:called|named|title(?:d)?)\s+["']?([a-zA-Z0-9 _-]{2,50})/i
+    );
+
     if (match) return match[1].trim();
 
     return prompt
@@ -430,18 +483,46 @@ function titleFromPrompt(prompt) {
         .join("-") || "Bharat-AI-File";
 }
 
+async function readResponse(response) {
+    const text = await response.text();
+
+    let data;
+
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch {
+        throw new Error(
+            `Server returned an invalid response (HTTP ${response.status}). ` +
+            "Check that the Netlify Function exists and inspect its logs."
+        );
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            data.error || `Request failed with HTTP ${response.status}.`
+        );
+    }
+
+    return data;
+}
+
 async function createDownload(prompt) {
     const type = detectFileType(prompt);
     const title = titleFromPrompt(prompt);
 
-    const response = await fetch("/create-file", {
+    const response = await fetch(FILE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, type, title })
     });
 
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "File generation failed.");
+    const data = await readResponse(response);
+
+    if (!data.downloadUrl || !data.filename) {
+        throw new Error(
+            "The file-generation function did not return a download URL and filename. The Netlify file-generation function still needs to be implemented."
+        );
+    }
 
     return data;
 }
@@ -449,7 +530,16 @@ async function createDownload(prompt) {
 function showTyping() {
     typingRow = document.createElement("article");
     typingRow.className = "message-row";
-    typingRow.innerHTML = '<div class="message-label">Bharat AI</div><div class="message-content">Thinking…</div>';
+
+    const label = document.createElement("div");
+    label.className = "message-label";
+    label.textContent = "Bharat AI";
+
+    const content = document.createElement("div");
+    content.className = "message-content";
+    content.textContent = "Thinking…";
+
+    typingRow.append(label, content);
     chatBox.append(typingRow);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
@@ -461,12 +551,14 @@ function removeTyping() {
 
 async function submitMessage(text) {
     const prompt = text.trim();
+
     if (!prompt || isBusy) return;
 
     if (!getCurrentChat()) createChat();
 
     isBusy = true;
     sendBtn.disabled = true;
+
     addMessage("user", prompt);
     userInput.value = "";
     userInput.style.height = "auto";
@@ -475,38 +567,60 @@ async function submitMessage(text) {
     try {
         if (isFileRequest(prompt)) {
             const file = await createDownload(prompt);
+
             removeTyping();
 
-            const explanation = `I've created your **${file.filename.split(".").pop().toUpperCase()}** file. Use the download link below to save it.`;
-            addMessage("assistant", explanation, {
-                filename: file.filename,
-                url: file.downloadUrl
-            });
+            const extension = file.filename.split(".").pop().toUpperCase();
+
+            addMessage(
+                "assistant",
+                `I've created your **${extension}** file. Use the download link below to save it.`,
+                {
+                    filename: file.filename,
+                    url: file.downloadUrl
+                }
+            );
         } else {
-            const response = await fetch("/chat", {
+            const history = conversationHistory.slice(-MAX_HISTORY);
+
+            const response = await fetch(CHAT_ENDPOINT, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     message: prompt,
-                    history: conversationHistory.slice(-MAX_HISTORY)
+                    history
                 })
             });
 
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || "Request failed.");
+            const data = await readResponse(response);
+
+            const reply = data.reply ?? data.response ?? data.answer;
+
+            if (typeof reply !== "string" || !reply.trim()) {
+                throw new Error(
+                    "The chat function returned no answer. Check its response format."
+                );
+            }
 
             removeTyping();
-            addMessage("assistant", data.reply);
+            addMessage("assistant", reply);
 
             conversationHistory.push(
-                { role: "user", parts: [{ text: prompt }] },
-                { role: "assistant", parts: [{ text: data.reply }] }
+                { role: "user", content: prompt },
+                { role: "assistant", content: reply }
             );
+
             conversationHistory = conversationHistory.slice(-MAX_HISTORY);
         }
     } catch (error) {
         removeTyping();
-        addMessage("assistant", `Sorry, something went wrong: ${error.message}`);
+
+        console.error("Bharat AI request failed:", error);
+
+        addMessage(
+            "assistant",
+            `Sorry, something went wrong: ${error.message}`
+        );
     } finally {
         isBusy = false;
         sendBtn.disabled = false;
@@ -528,28 +642,45 @@ userInput.addEventListener("keydown", event => {
 
 userInput.addEventListener("input", () => {
     userInput.style.height = "auto";
-    userInput.style.height = Math.min(userInput.scrollHeight, 180) + "px";
+    userInput.style.height =
+        Math.min(userInput.scrollHeight, 180) + "px";
 });
 
-document.getElementById("new-chat-btn").addEventListener("click", createChat);
-document.getElementById("clear-chat-btn").addEventListener("click", clearCurrentChat);
-document.getElementById("mobile-history-btn").addEventListener("click", () => {
-    sidebar.classList.toggle("open");
-});
-document.getElementById("close-run-btn").addEventListener("click", () => {
-    document.getElementById("run-area").classList.add("hidden");
-});
+document.getElementById("new-chat-btn")
+    .addEventListener("click", createChat);
+
+document.getElementById("clear-chat-btn")
+    .addEventListener("click", clearCurrentChat);
+
+document.getElementById("mobile-history-btn")
+    .addEventListener("click", () => {
+        sidebar.classList.toggle("open");
+    });
+
+document.getElementById("close-run-btn")
+    .addEventListener("click", () => {
+        document.getElementById("run-area").classList.add("hidden");
+    });
 
 document.querySelectorAll("[data-prompt]").forEach(button => {
-    button.addEventListener("click", () => submitMessage(button.dataset.prompt));
+    button.addEventListener("click", () => {
+        submitMessage(button.dataset.prompt);
+    });
 });
 
 if (chats.length) {
     currentChatId = chats[0].id;
+
     conversationHistory = chats[0].messages
-        .filter(m => m.role === "user" || m.role === "assistant")
-        .map(m => ({ role: m.role, parts: [{ text: m.text }] }))
+        .filter(message =>
+            message.role === "user" || message.role === "assistant"
+        )
+        .map(message => ({
+            role: message.role,
+            content: message.text
+        }))
         .slice(-MAX_HISTORY);
+
     renderHistory();
     renderChat();
 } else {
