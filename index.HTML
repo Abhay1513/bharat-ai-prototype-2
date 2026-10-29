@@ -1,0 +1,74 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bharat AI</title>
+    <link rel="stylesheet" href="Style.css">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">
+            <div class="logo">B</div>
+            <div><h2>Bharat AI</h2><p>Your AI workspace</p></div>
+        </div>
+
+        <button id="new-chat-btn" class="primary wide">＋ New chat</button>
+        <div class="section-label">YOUR CHATS</div>
+        <div id="history-list" class="history-list"></div>
+        <div class="sidebar-bottom">
+            <p>Powered by Abhay Pareek</p>
+            <p>Chats are saved in this browser.</p>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <button id="mobile-history-btn" class="icon-btn" aria-label="Toggle sidebar">☰</button>
+            <div class="top-title">
+                <h1 id="current-chat-title">New chat</h1>
+                <p><span class="status-dot"></span> AI assistant</p>
+            </div>
+            <button id="clear-chat-btn" class="icon-btn">Clear chat</button>
+        </header>
+
+        <section id="chat-box" class="chat-box" aria-live="polite">
+            <div id="welcome" class="welcome">
+                <div class="welcome-logo">B</div>
+                <h2>What can I help you with?</h2>
+                <p>Ask questions, write code, or create downloadable files.</p>
+                <div class="suggestions">
+                    <button data-prompt="Teach me Python from the beginning">Learn Python</button>
+                    <button data-prompt="Explain how artificial intelligence works">Explore AI</button>
+                    <button data-prompt="Create a PowerPoint presentation about space with 5 slides">Create a presentation</button>
+                    <button data-prompt="Create an Excel budget spreadsheet with sample data">Create Excel file</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="run-area" class="run-area hidden">
+            <div class="run-heading">
+                <strong>JavaScript preview</strong>
+                <button id="close-run-btn" class="icon-btn">Close</button>
+            </div>
+            <iframe id="code-preview" title="JavaScript preview" sandbox="allow-scripts"></iframe>
+            <p class="muted">Runs in an isolated browser preview. It cannot access your files or run computer commands.</p>
+        </section>
+
+        <footer class="composer-area">
+            <form id="chat-form" class="composer">
+                <textarea id="user-input" rows="1" placeholder="Message Bharat AI..." aria-label="Your message" required></textarea>
+                <button id="send-btn" type="submit" aria-label="Send message">↑</button>
+            </form>
+            <p class="disclaimer">AI can make mistakes. Check important information.</p>
+        </footer>
+    </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
